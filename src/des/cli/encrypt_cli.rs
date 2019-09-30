@@ -1,8 +1,8 @@
-use std::path::{PathBuf, Path};
 use crate::des;
 use crate::data_io;
 use crate::des::ParseKeyError;
 use std::ffi::OsStr;
+use std::path::PathBuf;
 
 pub static USAGE_MESSAGE: &str  = 
     "USAGE: des-e {{src_path}} [-k {{key}}] [-o {{dst_path}}] \n\
@@ -22,15 +22,24 @@ pub static USAGE_MESSAGE: &str  =
      <no flag -o> - same name, as with </a/b/> option, \n\
      file is located where the source file is";
 
-// TODO: just CLI ?
+pub enum Action {
+    EncryptFile,
+    DecryptFile,
+}
+
+impl Default for Action {
+    fn default() -> Self { return Action::EncryptFile; }
+}
+
 #[derive(Default)]
-pub struct EncryptorCli {
+pub struct Cli {
     pub key: u64,
     pub src_file_path: PathBuf, // TODO: Path?
     pub dst_file_path: PathBuf,
+    pub action: Action,
 }
 
-impl EncryptorCli {
+impl Cli {
     pub fn new() -> Self {
         Default::default()
     }
@@ -50,14 +59,12 @@ impl EncryptorCli {
         }
         // FIXME: if no parent
         // self.dst_file_path = match self.src_file_path.parent() {
-            // Some(parent) => {
+        // Some(parent) => {
+
+        // Default state (if some of )
         let mut buf = PathBuf::from(&self.src_file_path);
         buf.set_extension("des");
         self.dst_file_path = buf;
-                // buf
-            // },
-            // None => PathBuf::new(),
-        // };
         
         while let Some(flag) = args.next() {
             let flag = flag.as_ref();
@@ -81,11 +88,17 @@ impl EncryptorCli {
                             //println!("{:?}", dst_path);
                         }
                     }
-                    self.dst_file_path = dst_path;
+                    self.dst_file_path = dst_path
                 },
                 "-h" | "--help" => {
                     return None
                 },
+                "-d" | "--decrypt" => {
+                    self.action = Action::DecryptFile
+                }
+                "-e" | "--encrypt" => {
+                    self.action = Action::EncryptFile
+                }
                 _ => (),
             }
         }
@@ -98,6 +111,11 @@ impl EncryptorCli {
         // TODO: no details
         self.key = crate::des::key_from_str(&key)?;
         Ok(self)
+    }
+
+    pub fn default_action(mut self, action: Action) -> Self {
+        self.action = action;
+        self
     }
 
     // pub fn encrypt(&self) -> std::io::Result<()> {
@@ -118,8 +136,13 @@ impl EncryptorCli {
     }
 
     pub fn announce_begin(&self) {
-        println!("[DES] Encrypting file: {} ",
-                 self.src_file_path.display());
+        use Action::*;
+        match self.action {
+            EncryptFile => println!("[DES] Encrypting file: {}",
+                                    self.src_file_path.display()),
+            DecryptFile => println!("[DES] Decrypting file: {}",
+                                    self.src_file_path.display()),
+        };
         println!("[DES] Output file: {} ",
                  self.dst_file_path.display());
         println!("[DES] Key = {}", self.key)

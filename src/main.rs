@@ -110,15 +110,18 @@ mod data_io;
 use des::cli;
 
 fn main() {
-    let cli = cli::EncryptorCli::new()
+    use cli::Cli;
+    let cli = Cli::new()
         .default_key("FFFF-0000-FFFF-0000")
         .expect("Hard coded key is invalid")
+        .default_action(cli::Action::EncryptFile)
         .parse_args(std::env::args());
     
     if let None = cli {
-        cli::EncryptorCli::print_help();
+        Cli::print_help();
         return;
     }
+    
     let cli = cli.unwrap();
     
     cli.announce_begin();
@@ -128,6 +131,7 @@ fn main() {
         &cli.dst_file_path
     ).expect("Failed I/O operation.");
 
+    
     des::api::encrypt(read, write, cli.key);
     
     cli.announce_end();
