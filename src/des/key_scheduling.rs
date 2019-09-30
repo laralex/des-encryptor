@@ -1,20 +1,35 @@
-const BITS_IN_INPUT: u8 = 64;
+use crate::des::bit_arithmetics;
+use crate::des::bit_permutation::*;
+
+use crate::lazy_static::*;
+const BITS_IN_INPUT: u32 = 64;
 const BITS_ORDER_L_TO_R: bool = true;
 const BIT_COUNT_FROM: u32 = 1;
 
-use crate::des::bit_arithmetics;
-use bit_arithmetics::*;
-use crate::des::bit_permutation::*;
-
-pub trait BidirectionalIterator: std::iter::Iterator {
-    fn prev(&mut self) -> Option<Self::Item>;
+lazy_static! {
+    static ref INITIAL_PERMUTATION: PermutationTable = PermutationTable::new(vec![
+        57, 49, 41, 33, 25, 17, 9, 1, 58, 50, 42, 34, 26, 18,
+        10, 2, 59, 51, 43, 35, 27, 19, 11, 3, 60, 52, 44, 36,
+        63, 55, 47, 39, 31, 23, 15, 7, 62, 54, 46, 38, 30, 22,
+        14, 6, 61, 53, 45, 37, 29, 21, 13, 5, 28, 20, 12, 4
+    ], BIT_COUNT_FROM, BITS_IN_INPUT);
 }
+
+lazy_static! {
+    static ref PERMUTING_CHOICE: PermutationTable = PermutationTable::new(vec![
+        14, 17, 11, 24, 1, 5, 3, 28, 15, 6, 21, 10, 23, 19, 12, 4,
+        26, 8, 16, 7, 27, 20, 13, 2, 41, 52, 31, 37, 47, 55, 30, 40,
+        51, 45, 33, 48, 44, 49, 39, 56, 34, 53, 46, 42, 50, 36, 29, 32,
+    ], BIT_COUNT_FROM, 56);    
+}
+
 
 #[derive(Debug)]
 pub struct Key {
     pub value: u64,
     pub size_bits: u32,
 }
+
 //#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct KeyScheduler {
     des_key_size_bits: u32,
@@ -22,111 +37,107 @@ pub struct KeyScheduler {
     current_inner_key: Key,
     rotation_stage_split_bit: u32,
     rotation_stage_key_size: u32,
-    initial_permutation_table: PermutationTable,
-    permuting_choice_table: PermutationTable,
+}
+
+pub struct EncryptingKeyScheduler {
+    base: KeyScheduler,
+}
+
+pub struct DecryptingKeyScheduler {
+    base: KeyScheduler,
+}
+
+impl Iterator for EncryptingKeyScheduler {
+    type Item = Key;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.base.current_key_index == PERMUTING_CHOICE.output_size() {
+            self.base.current_key_index = 0;
+        } else {
+            self.base.current_key_index += 1;
+        }
+
+        self.base.rotate_key(true)
+    }  
+}
+
+impl Iterator for DecryptingKeyScheduler {
+    type Item = Key;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.base.current_key_index == 0 {
+            self.base.current_key_index = PERMUTING_CHOICE.output_size() - 1;
+        } else {
+            self.base.current_key_index -= 1;
+        }
+        self.base.rotate_key(false)
+    }
 }
 
 impl KeyScheduler {
     pub fn new(initial_key: u64) -> KeyScheduler {
-        let initial_permutation_table = PermutationTable::new(vec![
-            57, 49, 41, 33, 25, 17, 9, 1, 58, 50, 42, 34, 26, 18,
-            10, 2, 59, 51, 43, 35, 27, 19, 11, 3, 60, 52, 44, 36,
-            63, 55, 47, 39, 31, 23, 15, 7, 62, 54, 46, 38, 30, 22,
-            14, 6, 61, 53, 45, 37, 29, 21, 13, 5, 28, 20, 12, 4
-        ], BIT_COUNT_FROM, 64);
-        
-
-        let rotation_stage_key_size = initial_permutation_table.output_size();
+        let rotation_stage_key_size = INITIAL_PERMUTATION.output_size();
         let rotation_stage_split_bit = rotation_stage_key_size / 2;
-
-        let permuting_choice_table = PermutationTable::new(vec![
-            14, 17, 11, 24, 1, 5, 3, 28, 15, 6, 21, 10, 23, 19, 12, 4,
-            26, 8, 16, 7, 27, 20, 13, 2, 41, 52, 31, 37, 47, 55, 30, 40,
-            51, 45, 33, 48, 44, 49, 39, 56, 34, 53, 46, 42, 50, 36, 29, 32,
-        ], BIT_COUNT_FROM, 56);
-
-        let inner_key_value = initial_permutation_table.apply(initial_key);
-        let inner_key_size = initial_permutation_table.output_size();
+        let inner_key_value = INITIAL_PERMUTATION.apply(initial_key);
+        let inner_key_size = INITIAL_PERMUTATION.output_size();
         //println!("{:b} {}", inner_key_value, inner_key_size);
         KeyScheduler {
-            des_key_size_bits: permuting_choice_table.output_size(),
+            des_key_size_bits: PERMUTING_CHOICE.output_size(),
             current_key_index: 0,
             current_inner_key: Key {value: inner_key_value, size_bits: inner_key_size},
             rotation_stage_split_bit,
             rotation_stage_key_size,
-            initial_permutation_table,
-            permuting_choice_table,
+        }
+    }
+    pub fn new_encrypting(initial_key: u64) -> EncryptingKeyScheduler {
+        EncryptingKeyScheduler {
+            base: KeyScheduler::new(initial_key),
+        }
+    }
+
+    pub fn new_decrypting(initial_key: u64) -> DecryptingKeyScheduler {
+        DecryptingKeyScheduler {
+            base: KeyScheduler::new(initial_key),
         }
     }
 
     fn rotate_key(&mut self, to_high: bool) -> Option<Key>{
-        //use bit_arithmetics::idx_from_high as high;
         use bit_arithmetics::idx_from_low as low;
-        println!("{}", self.current_key_index);
         let shift_for = match self.current_key_index {
             1 | 2 | 9 | 16 => 1,
             _ => 2,
         };
-        type Rotate = fn(u64, u32, u32, u32) -> Option<u64>;
+        type Rotate = fn(u64, u32, u32, u32, u32) -> Option<u64>;
         let rotate: Rotate = if to_high {
             low::rotate_range_to_high
         } else {
             low::rotate_range_to_low
         };
 
-        println!("pre-rotate {:b} {} {}", self.current_inner_key.value, self.rotation_stage_split_bit, shift_for);
         let rotated_key = rotate(
             self.current_inner_key.value,
             0, self.rotation_stage_split_bit,
-            shift_for
+            shift_for, self.current_inner_key.size_bits
         )?;
         // println!("low-rotate {:b}", rotated_key);
         self.current_inner_key.value = rotate(
             rotated_key,
             self.rotation_stage_split_bit, self.rotation_stage_key_size,
-            shift_for
+            shift_for, self.current_inner_key.size_bits
         )?;
-        println!("high-rotate {:b}", self.current_inner_key.value);
         
         Some(self.des_key())
     }
 
     pub fn des_key(&self) -> Key {
-        let value = self.permuting_choice_table.apply(self.current_inner_key.value);
+        let value = PERMUTING_CHOICE.apply(self.current_inner_key.value);
         let size_bits = self.des_key_size_bits;
         // println!("{:b}", value);
         Key { value, size_bits }
     }
 }
 
-
-impl Iterator for KeyScheduler {
-    type Item = Key;
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.current_key_index == self.permuting_choice_table.output_size() {
-            self.current_key_index = 0;
-        } else {
-            self.current_key_index += 1;
-        }
-
-        self.rotate_key(true)
-    }    
-}
-
-impl BidirectionalIterator for KeyScheduler {
-    fn prev(&mut self) -> Option<Self::Item> {
-        if self.current_key_index == 0 {
-            self.current_key_index = self.permuting_choice_table.output_size() - 1;
-        } else {
-            self.current_key_index -= 1;
-        }
-        self.rotate_key(false)
-    }
-}
-
 #[test]
 fn test_key_scheduler(){
-    let mut s = KeyScheduler::new(
+    let mut s = KeyScheduler::new_encrypting(
         0b_00010011_00110100_01010111_01111001_10011011_10111100_11011111_11110001
     );
     //println!("{:?}", s.next());

@@ -21,16 +21,12 @@ impl PermutationTable {
     }
 
     pub fn apply(&self, value: u64) -> u64 {
-        // self.apply_with_skips(input, &std::iter::empty())
         let mut result = 0;
-        // println!("{}", self.input_size);
         for &bit_dest in self.bit_destinations.iter() {
-            // FIXME: there is awkward counting from high end, though
-            // it’s easier to work with low counting
-            let true_bit_index = self.input_size - 1 - bit_dest;
-            result += low::is_bit_set(value, true_bit_index) as u64;
+            result += high::is_bit_set(value, bit_dest, self.input_size) as u64;
             result <<= 1;
         }
+        println!("{}", self.input_size);
         result >> 1
     }
 }

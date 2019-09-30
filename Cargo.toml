@@ -11,3 +11,4 @@ publish = false
 # [[bin]]
 
 [dependencies]
+lazy_static = "*"
