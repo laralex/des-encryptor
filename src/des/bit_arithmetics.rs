@@ -42,6 +42,11 @@ pub mod idx_from_low {
     }
 
     #[inline]
+    pub fn get_bit(number: u64, bit_idx: u32, size_bits: u32) -> u64 {
+        filter_bit(number, bit_idx, size_bits) >> bit_idx
+    }
+
+    #[inline]
     pub fn filter_bit_range(number: u64, begin_bit: u32, end_bit: u32, size_bits: u32) -> Option<u64> {
         if begin_bit < size_bits {
             Some( number & bit_range_mask(begin_bit, end_bit)? )
@@ -89,6 +94,11 @@ pub mod idx_from_low {
     pub fn split_by_bit(number: u64, split_bit: u32, size_bits: u32) -> Option<(u64, u64)> {
         let high_mask = bit_range_mask(split_bit, size_bits)?;
         let low_mask = bit_range_mask(0, split_bit)?;
+        // println!("{:#064b} {}", number, size_bits);
+        // println!("{:#064b}", high_mask,);
+        // println!("{:#064b}", low_mask,);
+        // println!("{:#064b}", (number & high_mask) >> split_bit, );
+        // println!("{:#064b}",  number & low_mask );
         Some(( (number & high_mask) >> split_bit,
                 number & low_mask ))
     }
@@ -174,6 +184,12 @@ pub mod idx_from_high {
     #[inline]
     pub fn is_bit_set(number: u64, bit: u32, size_bits: u32) -> bool {
         low::is_bit_set(number, index_from_end!(bit, size_bits), size_bits)
+    }
+
+    #[inline]
+    pub fn get_bit(number: u64, bit_idx: u32, size_bits: u32) -> u64 {
+        println!("{}", index_from_end!(bit_idx, size_bits));
+        low::get_bit(number, index_from_end!(bit_idx, size_bits), size_bits) 
     }
     #[inline]
     pub fn filter_bit_range(number: u64, begin_bit: u32, end_bit: u32, size_bits: u32) -> Option<u64> {
