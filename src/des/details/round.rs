@@ -212,6 +212,7 @@ fn test_encrypt_round() {
 #[test]
 fn test_decrypt_round() {
     let mut scheduler = KeyScheduler::new_decrypting(0x133457799BBCDFF1);
+    for _ in 0..15 { scheduler.next(); };
     assert_eq!(
         decrypt_round(
             0b1111_0000_1010_1010_1111_0000_1010_1010__1110_1111_0100_1010_0110_0101_0100_0100, scheduler.next().unwrap()),

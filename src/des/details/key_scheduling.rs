@@ -5,6 +5,7 @@ use crate::lazy_static::*;
 const BITS_IN_INPUT: u32 = 64;
 const BITS_ORDER_L_TO_R: bool = true;
 const BIT_COUNT_FROM: u32 = 1;
+const ROTATIONS_TO_WRAPPING: u32 = 16;
 
 lazy_static! {
     static ref INITIAL_PERMUTATION: PermutationTable = PermutationTable::new(vec![
@@ -50,8 +51,8 @@ pub struct DecryptingKeyScheduler {
 impl Iterator for EncryptingKeyScheduler {
     type Item = Key;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.base.current_key_index == PERMUTING_CHOICE.output_size() {
-            self.base.current_key_index = 0;
+        if self.base.current_key_index == ROTATIONS_TO_WRAPPING {
+            self.base.current_key_index = 1;
         } else {
             self.base.current_key_index += 1;
         }
@@ -63,12 +64,13 @@ impl Iterator for EncryptingKeyScheduler {
 impl Iterator for DecryptingKeyScheduler {
     type Item = Key;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.base.current_key_index == 0 {
-            self.base.current_key_index = PERMUTING_CHOICE.output_size() - 1;
+        let rotated = self.base.rotate_key(false);
+        if self.base.current_key_index <= 1 {
+            self.base.current_key_index = ROTATIONS_TO_WRAPPING;
         } else {
             self.base.current_key_index -= 1;
         }
-        self.base.rotate_key(false)
+        rotated
     }
 }
 
@@ -103,10 +105,12 @@ impl KeyScheduler {
         use bit_arithmetics::idx_from_low as low;
         let shift_for = match self.current_key_index {
             1 | 2 | 9 | 16 => 1,
+            0 => 0, // FIXME when generating decrypting keys, no
+            // rotation is needed, but it doesn’t seem good solution
             _ => 2,
         };
-        type Rotate = fn(u64, u32, u32, u32, u32) -> Option<u64>;
-        let rotate: Rotate = if to_high {
+        //type Rotate = fn(u64, u32, u32, u32, u32) -> Option<u64>;
+        let rotate = if to_high {
             low::rotate_range_to_high
         } else {
             low::rotate_range_to_low
@@ -130,49 +134,95 @@ impl KeyScheduler {
     pub fn des_key(&self) -> Key {
         let value = PERMUTING_CHOICE.apply(self.current_inner_key.value);
         let size_bits = self.des_key_size_bits;
-        // println!("{:b}", value);
+        //println!("{:#066b}", value);
         Key { value, size_bits }
     }
 }
 
 #[test]
-fn test_key_scheduler(){
+fn test_key_encrypting_scheduler(){
     let mut s = KeyScheduler::new_encrypting(
         0b_00010011_00110100_01010111_01111001_10011011_10111100_11011111_11110001
     );
     //println!("{:?}", s.next());
     assert_eq!(s.next().unwrap().value,
-    0b_000110_110000_001011_101111_111111_000111_000001_110010, "k1");
+               0b_000110_110000_001011_101111_111111_000111_000001_110010, "k1");
     assert_eq!(s.next().unwrap().value,
-    0b_011110_011010_111011_011001_110110_111100_100111_100101, "k2");
+               0b_011110_011010_111011_011001_110110_111100_100111_100101, "k2");
     assert_eq!(s.next().unwrap().value,
-    0b_010101_011111_110010_001010_010000_101100_111110_011001, "k3");
+               0b_010101_011111_110010_001010_010000_101100_111110_011001, "k3");
     assert_eq!(s.next().unwrap().value,
-    0b_011100_101010_110111_010110_110110_110011_010100_011101, "k4");
+               0b_011100_101010_110111_010110_110110_110011_010100_011101, "k4");
     assert_eq!(s.next().unwrap().value,
-    0b_011111_001110_110000_000111_111010_110101_001110_101000, "k5");
+               0b_011111_001110_110000_000111_111010_110101_001110_101000, "k5");
     assert_eq!(s.next().unwrap().value,
-    0b_011000_111010_010100_111110_010100_000111_101100_101111, "k6");
+               0b_011000_111010_010100_111110_010100_000111_101100_101111, "k6");
     assert_eq!(s.next().unwrap().value,
-    0b_111011_001000_010010_110111_111101_100001_100010_111100, "k7");
+               0b_111011_001000_010010_110111_111101_100001_100010_111100, "k7");
     assert_eq!(s.next().unwrap().value,
-    0b_111101_111000_101000_111010_110000_010011_101111_111011, "k8");
+               0b_111101_111000_101000_111010_110000_010011_101111_111011, "k8");
     assert_eq!(s.next().unwrap().value,
-    0b_111000_001101_101111_101011_111011_011110_011110_000001, "k9");
+               0b_111000_001101_101111_101011_111011_011110_011110_000001, "k9");
     assert_eq!(s.next().unwrap().value,
-    0b_101100_011111_001101_000111_101110_100100_011001_001111, "k10");
+               0b_101100_011111_001101_000111_101110_100100_011001_001111, "k10");
     assert_eq!(s.next().unwrap().value,
-    0b_001000_010101_111111_010011_110111_101101_001110_000110, "k11");
+               0b_001000_010101_111111_010011_110111_101101_001110_000110, "k11");
     assert_eq!(s.next().unwrap().value,
-    0b_011101_010111_000111_110101_100101_000110_011111_101001, "k12");
+               0b_011101_010111_000111_110101_100101_000110_011111_101001, "k12");
     assert_eq!(s.next().unwrap().value,
-    0b_100101_111100_010111_010001_111110_101011_101001_000001, "k13");
+               0b_100101_111100_010111_010001_111110_101011_101001_000001, "k13");
     assert_eq!(s.next().unwrap().value,
-    0b_010111_110100_001110_110111_111100_101110_011100_111010, "k14");
+               0b_010111_110100_001110_110111_111100_101110_011100_111010, "k14");
     assert_eq!(s.next().unwrap().value,
-    0b_101111_111001_000110_001101_001111_010011_111100_001010, "k15");
+               0b_101111_111001_000110_001101_001111_010011_111100_001010, "k15");
     assert_eq!(s.next().unwrap().value,
-    0b_110010_110011_110110_001011_000011_100001_011111_110101, "k16");
+               0b_110010_110011_110110_001011_000011_100001_011111_110101, "k16");
+    assert_eq!(s.next().unwrap().value,
+               0b_000110_110000_001011_101111_111111_000111_000001_110010, "k1");
+}
+
+#[test]
+fn test_key_decrypting_scheduler(){
+    let mut s = KeyScheduler::new_decrypting(
+        0b_00010011_00110100_01010111_01111001_10011011_10111100_11011111_11110001
+    );
+    //println!("{:?}", s.next());
+    
+    assert_eq!(s.next().unwrap().value,
+               0b_110010_110011_110110_001011_000011_100001_011111_110101, "k16");
+    assert_eq!(s.next().unwrap().value,
+               0b_101111_111001_000110_001101_001111_010011_111100_001010, "k15");
+    assert_eq!(s.next().unwrap().value,
+               0b_010111_110100_001110_110111_111100_101110_011100_111010, "k14");
+    assert_eq!(s.next().unwrap().value,
+               0b_100101_111100_010111_010001_111110_101011_101001_000001, "k13");
+    assert_eq!(s.next().unwrap().value,
+               0b_011101_010111_000111_110101_100101_000110_011111_101001, "k12");
+    assert_eq!(s.next().unwrap().value,
+               0b_001000_010101_111111_010011_110111_101101_001110_000110, "k11");
+    assert_eq!(s.next().unwrap().value,
+               0b_101100_011111_001101_000111_101110_100100_011001_001111, "k10");
+    assert_eq!(s.next().unwrap().value,
+               0b_111000_001101_101111_101011_111011_011110_011110_000001, "k9");
+    assert_eq!(s.next().unwrap().value,
+               0b_111101_111000_101000_111010_110000_010011_101111_111011, "k8");
+    assert_eq!(s.next().unwrap().value,
+               0b_111011_001000_010010_110111_111101_100001_100010_111100, "k7");
+    assert_eq!(s.next().unwrap().value,
+               0b_011000_111010_010100_111110_010100_000111_101100_101111, "k6");
+    assert_eq!(s.next().unwrap().value,
+               0b_011111_001110_110000_000111_111010_110101_001110_101000, "k5");
+    assert_eq!(s.next().unwrap().value,
+               0b_011100_101010_110111_010110_110110_110011_010100_011101, "k4");
+    assert_eq!(s.next().unwrap().value,
+               0b_010101_011111_110010_001010_010000_101100_111110_011001, "k3");
+    assert_eq!(s.next().unwrap().value,
+               0b_011110_011010_111011_011001_110110_111100_100111_100101, "k2");
+    assert_eq!(s.next().unwrap().value,
+               0b_000110_110000_001011_101111_111111_000111_000001_110010, "k1");
+    assert_eq!(s.next().unwrap().value,
+               0b_110010_110011_110110_001011_000011_100001_011111_110101, "k16");
+
 }
 
     // println!("{:b}", s.des_key().value);
