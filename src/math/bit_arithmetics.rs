@@ -6,7 +6,6 @@ macro_rules! index_from_end {
 
 pub mod idx_from_low {
     use super::*;
-    use std::ops::Deref;
     
     #[inline]
     pub fn bit_mask(bit: u32) -> u64 {
@@ -188,7 +187,7 @@ pub mod idx_from_high {
 
     #[inline]
     pub fn get_bit(number: u64, bit_idx: u32, size_bits: u32) -> u64 {
-        println!("{}", index_from_end!(bit_idx, size_bits));
+        //println!("{}", index_from_end!(bit_idx, size_bits));
         low::get_bit(number, index_from_end!(bit_idx, size_bits), size_bits) 
     }
     #[inline]

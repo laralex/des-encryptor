@@ -1,5 +1,5 @@
-use crate::des::bit_arithmetics;
-use crate::des::bit_permutation::*;
+use crate::math::bit_arithmetics;
+use super::{PermutationTable};
 
 use crate::lazy_static::*;
 const BITS_IN_INPUT: u32 = 64;

@@ -1,5 +1,7 @@
-use crate::des::bit_arithmetics::idx_from_high as high;
-use crate::des::*;
+use crate::math::bit_arithmetics::idx_from_high as high;
+use crate::math::bit_arithmetics::idx_from_low as low;
+use crate::des::details::*;
+
 const BITS_IN_INPUT: u32 = 64;
 const BITS_IN_LOW_HALF: u32 = 32;
 const BIT_COUNT_FROM: u32 = 1;
@@ -136,35 +138,41 @@ lazy_static! {
 // ];
 
 #[inline]
-pub fn encrypt_round(data: u64, (key, size): (u64, u32)) -> u64 {
-    let split = high::split_by_bit(
+pub fn encrypt_round(data: u64, key: Key)  -> u64 {
+    let split = low::split_by_bit(
         data, BITS_IN_LOW_HALF, BITS_IN_INPUT).unwrap();
     let (high_half, low_half) = (split.0 as u32, split.1);
     let new_high = low_half << BITS_IN_LOW_HALF;
-    let new_low  = high_half ^ feilstel_function(low_half as u32, (key, size));
+    let new_low  = high_half ^ feilstel_function(low_half as u32, key);
     new_high + new_low as u64
 }
 
 #[inline]
-pub fn decrypt_round(data: u64, (key, size): (u64, u32)) -> u64 {
-    let swapped_halfs = high::swap_ranges(
+pub fn decrypt_round(data: u64, key: Key) -> u64 {
+    println!("{:#066b}", data);
+    let swapped_halfs = low::swap_ranges(
         data, BITS_IN_LOW_HALF, BITS_IN_INPUT).unwrap();
-    let decrypted_data = encrypt_round(swapped_halfs, (key, size));
-    high::swap_ranges(
-        decrypted_data, BITS_IN_LOW_HALF, BITS_IN_INPUT).unwrap()
+    println!("{:#066b}", swapped_halfs);
+    let decrypted_data = encrypt_round(swapped_halfs, key);
+    println!("{:#066b}", decrypted_data);
+    let end = low::swap_ranges(
+        decrypted_data, BITS_IN_LOW_HALF, BITS_IN_INPUT).unwrap();
+    println!("{:#066b}", end);
+    end
 }
 
 // TODO: check key size
-fn feilstel_function(mut data: u32, (key, key_size): (u64, u32)) -> u32 {
+fn feilstel_function(mut data: u32, key: Key)  -> u32 {
     let data = data as u64;
-    let expanded_data = EXPANSION.apply(data as u64);
-    let encrypted_data = expanded_data ^ key;
-    println!("{:#066b}", encrypted_data);
-    let mut data_size = key_size;
+    
+    let expanded_data = EXPANSION.apply(data as u64);    
+    // println!("{:#066b}", expanded_data);
+    let encrypted_data = expanded_data ^ key.value;
+    // println!("{:#066b}", encrypted_data);
+    let mut data_size = key.size_bits;
     let mut data_to_split = encrypted_data;
     let mut merged_data = 0;
-    let mut merged_size = 0;
-    for g in 0.. (key_size / GRANULATION_INPUT_SIZE_BITS) {
+    for g in 0.. (key.size_bits / GRANULATION_INPUT_SIZE_BITS) {
         let split = high::split_by_bit(
             data_to_split,
             GRANULATION_INPUT_SIZE_BITS - 1,
@@ -182,10 +190,31 @@ fn feilstel_function(mut data: u32, (key, key_size): (u64, u32)) -> u32 {
 
 #[test]
 fn test_feilstel_function() {
+    //let val: u32 = 0b1111_0000_1010_1010_1111_0000_1010_1010;
+    // println!("{:#066b}", val);
     assert_eq!(
         feilstel_function(
             0b1111_0000_1010_1010_1111_0000_1010_1010,
-            (0b000110_110000_001011_101111_111111_000111_000001_110010, 48)),
+            Key {value:0b000110_110000_001011_101111_111111_000111_000001_110010, size_bits:48}),
         0b0010_0011_0100_1010_1010_1001_1011_1011
     );
+}
+
+#[test]
+fn test_encrypt_round() {
+    let mut scheduler = KeyScheduler::new_encrypting(0x133457799BBCDFF1);
+    assert_eq!(
+        encrypt_round(
+            0b1100_1100_0000_0000_1100_1100_1111_1111_1111_0000_1010_1010_1111_0000_1010_1010, scheduler.next().unwrap()),
+        0b1111_0000_1010_1010_1111_0000_1010_1010__1110_1111_0100_1010_0110_0101_0100_0100,
+    )
+}
+#[test]
+fn test_decrypt_round() {
+    let mut scheduler = KeyScheduler::new_decrypting(0x133457799BBCDFF1);
+    assert_eq!(
+        decrypt_round(
+            0b1111_0000_1010_1010_1111_0000_1010_1010__1110_1111_0100_1010_0110_0101_0100_0100, scheduler.next().unwrap()),
+        0b1100_1100_0000_0000_1100_1100_1111_1111_1111_0000_1010_1010_1111_0000_1010_1010
+    )
 }

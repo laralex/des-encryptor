@@ -1,8 +1,11 @@
-#[macro_use] extern crate lazy_static;
+#[macro_use]
+extern crate lazy_static;
 
+mod math;
 mod des;
 mod data_io;
-use des::cli;
+mod ui;
+use ui::cli;
 
 fn main() {
     use cli::Cli;

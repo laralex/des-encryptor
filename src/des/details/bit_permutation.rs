@@ -1,5 +1,5 @@
-use crate::des::bit_arithmetics::idx_from_high as high;
-use crate::des::bit_arithmetics::idx_from_low as low;
+use crate::math::bit_arithmetics::idx_from_high as high;
+use crate::math::bit_arithmetics::idx_from_low as low;
 
 pub struct PermutationTable{
     input_size: u32,
@@ -26,7 +26,7 @@ impl PermutationTable {
             result += high::is_bit_set(value, bit_dest, self.input_size) as u64;
             result <<= 1;
         }
-        println!("{}", self.input_size);
+        // println!("{}", self.input_size);
         result >> 1
     }
 }

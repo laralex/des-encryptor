@@ -1,7 +1,4 @@
-use crate::des;
-use crate::data_io;
-use crate::des::ParseKeyError;
-use std::ffi::OsStr;
+use crate::ui::key_parsing;
 use std::path::PathBuf;
 
 pub static USAGE_MESSAGE: &str  = 
@@ -72,7 +69,7 @@ impl Cli {
                 "-k" | "--key"=> {
                     // TODO: Cow possibility, inplace replace
                     let key_hex_str = &args.next()?;
-                    self.key = des::key_from_str(key_hex_str).ok()?;
+                    self.key = key_parsing::key_from_str(key_hex_str).ok()?;
                 },
                 "-o" | "--output" => {
                     let dst_path = args.next()?;
@@ -106,10 +103,10 @@ impl Cli {
     }
     
     pub fn default_key<'a, T>(mut self, key: T)
-                              -> Result<Self, ParseKeyError>
+                              -> Result<Self, key_parsing::ParseKeyError>
     where T: AsRef<str> {
         // TODO: no details
-        self.key = crate::des::key_from_str(&key)?;
+        self.key = key_parsing::key_from_str(&key)?;
         Ok(self)
     }
 

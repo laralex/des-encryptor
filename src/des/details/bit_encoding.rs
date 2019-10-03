@@ -1,5 +1,5 @@
-use crate::des::bit_arithmetics::idx_from_low as low;
-use crate::des::bit_arithmetics::idx_from_high as high;
+use crate::math::bit_arithmetics::idx_from_low as low;
+use crate::math::bit_arithmetics::idx_from_high as high;
 
 const MAX_INT_SIZE_BITS: u32 = 64;
 pub struct EncodingTable<'a> {

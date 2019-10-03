@@ -1,5 +1,6 @@
 use std::io::{Read, Write, Result, BufRead, BufReader, BufWriter};
 use std::convert::AsMut;
+//use super::details::*;
 
 pub const BITS_IN_BLOCK: usize = 64;
 pub const BYTES_IN_BLOCK: usize =
