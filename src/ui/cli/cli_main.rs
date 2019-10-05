@@ -1,24 +1,28 @@
 use crate::ui::key_parsing;
 use std::path::PathBuf;
+use crate::reinterpret_bytes::Endianess;
+/*
+Options: \n\
+ * {{src_path}}: a path to file, that will be encrypted. \n\
+The file will remain untouched \n\
+ * {{key}}: a 64 bit long hexadecimal string \n\
+(16 chars, optional '-' delimiter, trailing spaces). \n\
+If not passed from args, key will have \n\
+a default value \n\
+ * {{dst_path}}: a path to a destination file: \n\
+</a/b/file.extension> - such file will be created \n\
+(or opened and truncated, if already exists) \n\
+</a/b/file> - name=file, extension='.des' \n\
+</a/b/> - name=source_file, extension='.des' \n\
+<no flag -o> - same name, as with </a/b/> option, \n\
+file is located where the source file is
+ */
 
 pub static USAGE_MESSAGE: &str  = 
-    "USAGE: des-e {{src_path}} [-k {{key}}] [-o {{dst_path}}] \n\
-     where filenames and extensions are arbitrary. \n\
-     Options: \n\
-     * {{src_path}}: a path to file, that will be encrypted. \n\
-     The file will remain untouched \n\
-     * {{key}}: a 64 bit long hexadecimal string \n\
-     (16 chars, optional '-' delimiter, trailing spaces). \n\
-     If not passed from args, key will have \n\
-     a default value \n\
-     * {{dst_path}}: a path to a destination file: \n\
-     </a/b/file.extension> - such file will be created \n\
-     (or opened and truncated, if already exists) \n\
-     </a/b/file> - name=file, extension='.des' \n\
-     </a/b/> - name=source_file, extension='.des' \n\
-     <no flag -o> - same name, as with </a/b/> option, \n\
-     file is located where the source file is";
+    "USAGE: des {{src_path}} [-k {{key}}] [-o {{dst_path}}] [{-b, -l}] [{-e, -d}] \n\
+     where filenames and extensions are arbitrary.";
 
+#[derive(Copy, Clone)]
 pub enum Action {
     EncryptFile,
     DecryptFile,
@@ -34,15 +38,13 @@ pub struct Cli {
     pub src_file_path: PathBuf, // TODO: Path?
     pub dst_file_path: PathBuf,
     pub action: Action,
+    pub endianess: Endianess,
 }
 
 impl Cli {
     pub fn new() -> Self {
         Default::default()
     }
-    // fn build(&mut self) {
-    
-    // }
     
     pub fn parse_args<'a, T, S>(mut self, mut args: T) -> Option<Self>
     where T : Iterator<Item=S>, S: AsRef<str> {
@@ -62,7 +64,9 @@ impl Cli {
         let mut buf = PathBuf::from(&self.src_file_path);
         buf.set_extension("des");
         self.dst_file_path = buf;
-        
+
+        let mut is_action_specified = false;
+        let mut is_endianess_specified = false;
         while let Some(flag) = args.next() {
             let flag = flag.as_ref();
             match flag {
@@ -91,10 +95,24 @@ impl Cli {
                     return None
                 },
                 "-d" | "--decrypt" => {
+                    if is_action_specified { return None; }
+                    is_action_specified = true;
                     self.action = Action::DecryptFile
-                }
+                },
                 "-e" | "--encrypt" => {
+                    if is_action_specified { return None; }
+                    is_action_specified = true;
                     self.action = Action::EncryptFile
+                },
+                "-b" | "--big-endian" => {
+                    if is_endianess_specified { return None; }
+                    is_endianess_specified = true;
+                    self.endianess = Endianess::Big;
+                }
+                "-l" | "--little-endian" => {
+                    if is_endianess_specified { return None; }
+                    is_endianess_specified = true;
+                    self.endianess = Endianess::Little;
                 }
                 _ => (),
             }
@@ -115,19 +133,12 @@ impl Cli {
         self
     }
 
-    // pub fn encrypt(&self) -> std::io::Result<()> {
-    //     assert!(self.src_file_path.is_file());
-    //     assert!(self.dst_file_path.is_file());
-    //     // TODO: assert key is valid
-    //     let (input, output) = data_io::open_rw_files(
-    //         &self.src_file_path, &self.dst_file_path
-    //     )?;
-    //     use crate::des::api;
-    //     api::encrypt(input, output, self.key);
+    pub fn default_endianess(mut self, endianess: Endianess) -> Self {
+        self.endianess = endianess;
+        self
+    }
 
-    //     Ok( () )
-    // }
-
+    // TODO: accept stream, not just println
     pub fn print_help() {
         println!("{}", USAGE_MESSAGE);
     }
@@ -149,4 +160,12 @@ impl Cli {
         println!("[DES] Done");
     }
 
+}
+
+impl Cli {
+    pub fn key(&self) -> u64 { self.key }
+    pub fn src_file_path(&self) -> &PathBuf { &self.src_file_path }
+    pub fn dst_file_path(&self) -> &PathBuf { &self.dst_file_path }
+    pub fn action(&self) -> Action { self.action }
+    pub fn endianess(&self) -> Endianess { self.endianess }
 }

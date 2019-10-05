@@ -1,4 +1,4 @@
-use super::{encrypt_round, decrypt_round, KeyScheduler, Key, PermutationTable};
+use super::{encrypt_round, encrypt_last_round, KeyScheduler, Key, PermutationTable};
 
 const PERMUTATION_INPUT_SIZE: u32 = 64;
 const BIT_COUNT_FROM: u32 = 1;
@@ -33,48 +33,74 @@ lazy_static! {
 
 // TODO: accept arbitrary u8 slice, not strict u64
 pub fn encrypt_block(data: u64, key: u64) -> u64 {
-    encrypt_or_decrypt_block(
+    act_on_block(
         data,
         KeyScheduler::new_encrypting(key),
-        true
     )
 }
 
 pub fn decrypt_block(data: u64, key: u64) -> u64 {
-    encrypt_or_decrypt_block(
+    act_on_block(
         data,
         KeyScheduler::new_decrypting(key),
-        false
     )
 }
 
 #[inline]
-fn encrypt_or_decrypt_block(mut data: u64, key_iterator: impl Iterator<Item=Key>, do_encrypt: bool) -> u64 {
+fn act_on_block<I>(mut data: u64, mut key_iterator: I) -> u64
+where I: Iterator<Item=Key>{
     const ROUNDS_NUMBER: usize = 16;
-    let action = match do_encrypt{
-        true => encrypt_round,
-        false => decrypt_round,
-    };
-    INITIAL_PERMUTATION.apply(data);
-    (0..ROUNDS_NUMBER).zip(key_iterator)
-        .map(|(_, round_key)|
-             data = action(data, round_key));
+    // let action = match do_encrypt {
+    //     true => encrypt_round,
+    //     false => decrypt_round,
+    // };
+        // println!("{:#018x}", data);
+    data = INITIAL_PERMUTATION.apply(data);
+    for (_, round_key) in (0..ROUNDS_NUMBER-1).zip(&mut key_iterator) {
+        data = encrypt_round(data, round_key);
+        // println!("{:#018x}", data);
+    }
+    data = encrypt_last_round(data, key_iterator.next().unwrap());
+    // println!("{:#018x} done", data);
     REVERSE_PERMUTATION.apply(data)
 }
 
-// #[test]
-// fn test_encryption_of_block() {
-//     assert_eq!(
-//         encrypt_block(0x0123456789ABCDEF, 0x133457799BBCDFF1),
-//         0x85E813540F0AB405
-//     );
-// }
+#[test]
+fn test_encryption_of_block() {
+    assert_eq!(
+        encrypt_block(0x0123456789ABCDEF, 0x133457799BBCDFF1),
+        0x85E813540F0AB405
+    );
+    assert_eq!(
+        encrypt_block(0x8787878787878787, 0x0e329232ea6d0d73),
+        0x0000000000000000
+    );
 
-// #[test]
-// fn test_decryption_of_block() {
-//     assert_eq!(
-//         decrypt_block(0x85E813540F0AB405, 0x133457799BBCDFF1),
-//         0x0123456789ABCDEF
-//     );
-// }
-
+    assert_eq!(
+        encrypt_block(0x596f7572206c6970, 0x0e329232ea6d0d73),
+        0xc0999fdde378d7ed
+    );
+    assert_eq!(
+        encrypt_block(0x123456ABCD132536, 0xAABB09182736CCDD),
+        0xC0B7A8D05F3A829C
+    );
+}
+#[test]
+fn test_decryption_of_block() {
+    assert_eq!(
+        decrypt_block(0x85E813540F0AB405, 0x133457799BBCDFF1),
+        0x0123456789ABCDEF
+    );
+    assert_eq!(
+        decrypt_block(0x0000000000000000, 0x0e329232ea6d0d73),
+        0x8787878787878787
+    );
+    assert_eq!(
+        decrypt_block(0xc0999fdde378d7ed, 0x0e329232ea6d0d73),
+        0x596f7572206c6970
+    );
+    assert_eq!(
+        decrypt_block(0xC0B7A8D05F3A829C, 0xAABB09182736CCDD),
+        0x123456ABCD132536
+    );
+}

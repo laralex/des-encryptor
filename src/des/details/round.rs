@@ -148,21 +148,25 @@ pub fn encrypt_round(data: u64, key: Key)  -> u64 {
 }
 
 #[inline]
-pub fn decrypt_round(data: u64, key: Key) -> u64 {
-    println!("{:#066b}", data);
-    let swapped_halfs = low::swap_ranges(
-        data, BITS_IN_LOW_HALF, BITS_IN_INPUT).unwrap();
-    println!("{:#066b}", swapped_halfs);
-    let decrypted_data = encrypt_round(swapped_halfs, key);
-    println!("{:#066b}", decrypted_data);
-    let end = low::swap_ranges(
-        decrypted_data, BITS_IN_LOW_HALF, BITS_IN_INPUT).unwrap();
-    println!("{:#066b}", end);
-    end
+pub fn encrypt_last_round(data: u64, key: Key) -> u64 {
+    low::swap_ranges(
+        encrypt_round(data, key),
+        BITS_IN_LOW_HALF, BITS_IN_INPUT
+    ).unwrap()
 }
 
+// #[inline]
+// pub fn decrypt_round(data: u64, key: Key) -> u64 {
+//     let swapped_halfs = low::swap_ranges(
+//         data, BITS_IN_LOW_HALF, BITS_IN_INPUT).unwrap();
+//     let decrypted_data = encrypt_round(swapped_halfs, key);
+//     let end = low::swap_ranges(
+//         decrypted_data, BITS_IN_LOW_HALF, BITS_IN_INPUT).unwrap();
+//     end
+// }
+
 // TODO: check key size
-fn feilstel_function(mut data: u32, key: Key)  -> u32 {
+fn feilstel_function(data: u32, key: Key)  -> u32 {
     let data = data as u64;
     
     let expanded_data = EXPANSION.apply(data as u64);    
@@ -209,13 +213,17 @@ fn test_encrypt_round() {
         0b1111_0000_1010_1010_1111_0000_1010_1010__1110_1111_0100_1010_0110_0101_0100_0100,
     )
 }
-#[test]
-fn test_decrypt_round() {
-    let mut scheduler = KeyScheduler::new_decrypting(0x133457799BBCDFF1);
-    for _ in 0..15 { scheduler.next(); };
-    assert_eq!(
-        decrypt_round(
-            0b1111_0000_1010_1010_1111_0000_1010_1010__1110_1111_0100_1010_0110_0101_0100_0100, scheduler.next().unwrap()),
-        0b1100_1100_0000_0000_1100_1100_1111_1111_1111_0000_1010_1010_1111_0000_1010_1010
-    )
-}
+
+// #[test]
+// fn test_decrypt_round() {
+//     let mut scheduler = KeyScheduler::new_decrypting(0x133457799BBCDFF1);
+//     for _ in 0..15 { scheduler.next(); };
+//     assert_eq!(
+//         encrypt_round(
+//             //675DB281
+
+
+//             0b1110_1111_0100_1010_0110_0101_0100_0100__1111_0000_1010_1010_1111_0000_1010_1010, scheduler.next().unwrap()),
+//         0b1100_1100_0000_0000_1100_1100_1111_1111_1111_0000_1010_1010_1111_0000_1010_1010
+//     )
+// }
