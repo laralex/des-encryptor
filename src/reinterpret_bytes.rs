@@ -8,7 +8,8 @@ impl Default for Endianess {
     fn default() -> Self { return Endianess::Big; }
 }
 
-pub fn as_slice_of<'a, DST>(data: &'a mut [u8]) -> &'a mut [DST] {
+/// Preserves endianess of target machine
+pub fn as_slice_of<DST>(data: &mut [u8]) -> &mut [DST] {
     use std::mem;
     let bytes_in_data = mem::size_of_val(data);
     let bytes_in_dst: usize = mem::size_of::<DST>();
@@ -19,3 +20,4 @@ pub fn as_slice_of<'a, DST>(data: &'a mut [u8]) -> &'a mut [DST] {
         //mem::transmute::<&'a mut [u8], &'a mut [DST]>(data)
     }
 }
+

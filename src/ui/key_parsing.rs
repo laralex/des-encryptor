@@ -33,18 +33,23 @@ pub fn key_from_str<S: AsRef<str>>(hex_str: &S) -> ParseResult<u64>  {
     u64::from_str_radix(&clean, 16).or(Err(NotHexFormat))
 }
 
-#[test]
-fn test_key_from_str(){
-    let key_hex_1 = "0ACB-38C4-9EA3-1C71";
-    assert_eq!(key_from_str(&key_hex_1), Ok(777_777_777_777_777_777));
-    // test no move
-    assert_eq!(key_from_str(&key_hex_1), Ok(777_777_777_777_777_777));
-    assert_eq!(key_from_str(&"ZFFF-FFFF-0000-0000"),
-               Err(NotHexFormat));
-    assert_eq!(key_from_str(&"FFF-FFFF-0000-0000"),
-               Err(BadLength(16)));
-    assert_eq!(key_from_str(&"FFFF-FFFF-FFFF-FFFF"),
-               Ok(0xFFFF_FFFF_FFFF_FFFF));
-    assert_eq!(key_from_str(&"abcd-ffee-0000-1234"),
-               Ok(0xabcd_ffee_0000_1234));
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_key_from_str(){
+        let key_hex_1 = "0ACB-38C4-9EA3-1C71";
+        assert_eq!(key_from_str(&key_hex_1), Ok(777_777_777_777_777_777));
+        // test no move
+        assert_eq!(key_from_str(&key_hex_1), Ok(777_777_777_777_777_777));
+        assert_eq!(key_from_str(&"ZFFF-FFFF-0000-0000"),
+                   Err(NotHexFormat));
+        assert_eq!(key_from_str(&"FFF-FFFF-0000-0000"),
+                   Err(BadLength(16)));
+        assert_eq!(key_from_str(&"FFFF-FFFF-FFFF-FFFF"),
+                   Ok(0xFFFF_FFFF_FFFF_FFFF));
+        assert_eq!(key_from_str(&"abcd-ffee-0000-1234"),
+                   Ok(0xabcd_ffee_0000_1234));
+}
 }

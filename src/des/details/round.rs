@@ -192,38 +192,43 @@ fn feilstel_function(data: u32, key: Key)  -> u32 {
     FINAL_PERMUTATION.apply(merged_data as u64) as u32
 }
 
-#[test]
-fn test_feilstel_function() {
-    //let val: u32 = 0b1111_0000_1010_1010_1111_0000_1010_1010;
-    // println!("{:#066b}", val);
-    assert_eq!(
-        feilstel_function(
-            0b1111_0000_1010_1010_1111_0000_1010_1010,
-            Key {value:0b000110_110000_001011_101111_111111_000111_000001_110010, size_bits:48}),
-        0b0010_0011_0100_1010_1010_1001_1011_1011
-    );
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_feilstel_function() {
+        //let val: u32 = 0b1111_0000_1010_1010_1111_0000_1010_1010;
+        // println!("{:#066b}", val);
+        assert_eq!(
+            feilstel_function(
+                0b1111_0000_1010_1010_1111_0000_1010_1010,
+                Key {value:0b000110_110000_001011_101111_111111_000111_000001_110010, size_bits:48}),
+            0b0010_0011_0100_1010_1010_1001_1011_1011
+        );
+    }
+
+    #[test]
+    fn test_encrypt_round() {
+        let mut scheduler = KeyScheduler::new_encrypting(0x133457799BBCDFF1);
+        assert_eq!(
+            encrypt_round(
+                0b1100_1100_0000_0000_1100_1100_1111_1111_1111_0000_1010_1010_1111_0000_1010_1010, scheduler.next().unwrap()),
+            0b1111_0000_1010_1010_1111_0000_1010_1010__1110_1111_0100_1010_0110_0101_0100_0100,
+        )
+    }
+
+    // #[test]
+    // fn test_decrypt_round() {
+    //     let mut scheduler = KeyScheduler::new_decrypting(0x133457799BBCDFF1);
+    //     for _ in 0..15 { scheduler.next(); };
+    //     assert_eq!(
+    //         encrypt_round(
+    //             //675DB281
+
+
+    //             0b1110_1111_0100_1010_0110_0101_0100_0100__1111_0000_1010_1010_1111_0000_1010_1010, scheduler.next().unwrap()),
+    //         0b1100_1100_0000_0000_1100_1100_1111_1111_1111_0000_1010_1010_1111_0000_1010_1010
+    //     )
+    // }
+
 }
-
-#[test]
-fn test_encrypt_round() {
-    let mut scheduler = KeyScheduler::new_encrypting(0x133457799BBCDFF1);
-    assert_eq!(
-        encrypt_round(
-            0b1100_1100_0000_0000_1100_1100_1111_1111_1111_0000_1010_1010_1111_0000_1010_1010, scheduler.next().unwrap()),
-        0b1111_0000_1010_1010_1111_0000_1010_1010__1110_1111_0100_1010_0110_0101_0100_0100,
-    )
-}
-
-// #[test]
-// fn test_decrypt_round() {
-//     let mut scheduler = KeyScheduler::new_decrypting(0x133457799BBCDFF1);
-//     for _ in 0..15 { scheduler.next(); };
-//     assert_eq!(
-//         encrypt_round(
-//             //675DB281
-
-
-//             0b1110_1111_0100_1010_0110_0101_0100_0100__1111_0000_1010_1010_1111_0000_1010_1010, scheduler.next().unwrap()),
-//         0b1100_1100_0000_0000_1100_1100_1111_1111_1111_0000_1010_1010_1111_0000_1010_1010
-//     )
-// }
