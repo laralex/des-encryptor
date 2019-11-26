@@ -2,29 +2,13 @@ use crate::ui::key_parsing;
 use std::path::PathBuf;
 use std::str::FromStr;
 use crate::reinterpret_bytes;
-/*
-Options: \n\
- * {{src_path}}: a path to file, that will be encrypted. \n\
-The file will remain untouched \n\
- * {{key}}: a 64 bit long hexadecimal string \n\
-(16 chars, optional '-' delimiter, trailing spaces). \n\
-If not passed from args, key will have \n\
-a default value \n\
- * {{dst_path}}: a path to a destination file: \n\
-</a/b/file.extension> - such file will be created \n\
-(or opened and truncated, if already exists) \n\
-</a/b/file> - name=file, extension='.des' \n\
-</a/b/> - name=source_file, extension='.des' \n\
-<no flag -o> - same name, as with </a/b/> option, \n\
-file is located where the source file is
- */
 
 pub static USAGE_MESSAGE: &str  = 
     // "USAGE: des {{src_path}} [-k {{key}}] [-o {{dst_path}}] [{-b,
     // -l}] [{-e, -d}] \n\
     "\nUSAGE: des {{src_file}} {{dst_file}}\n\n\
-     * these paths can't be the same, and src_file should exist \n\
-     * different flags are allowed between these tokens\
+     * these paths can't be the same, and src_file should exist\n\
+     * different flags are allowed between these tokens\n\
      (add -h/--help to command to find flags list)";
 
 pub static HELP_MESSAGE: &str =
@@ -61,27 +45,40 @@ pub static HELP_MESSAGE: &str =
      error occurs
      ";
 
+/// Possible actions user may desire, namely
+/// - DES encryption
+/// - DES decryption
+/// - TripleDES encryption
+/// - TripleDES decryption
 #[derive(Copy, Clone)]
 pub enum Action {
     EncryptFile,
     DecryptFile,
+    TripleEncryptFile,
+    TripleDecryptFile,
 }
 
 impl Default for Action {
     fn default() -> Self { return Action::EncryptFile; }
 }
 
+// Delegation of action’s parsing to the action class itself
 impl FromStr for Action {
     type Err = ();
     fn from_str(str: &str) -> Result<Self, Self::Err> {
         match str {
             "-e" | "--encrypt" => Ok(Action::EncryptFile),
             "-d" | "--decrypt" => Ok(Action::DecryptFile),
+            "-te" | "--triple-encrypt" => Ok(Action::TripleEncryptFile),
+            "-td" | "--triple-decrypt" => Ok(Action::TripleDecryptFile),
             _ => Err(()),
         }
     }
 } 
 
+
+/// Level of logging, provided by CLI application
+/// TODO: not yet implemented
 #[derive(Copy, Clone)]
 pub enum MessagingLevel {
     Verbose,
@@ -92,6 +89,8 @@ pub enum MessagingLevel {
 impl Default for MessagingLevel {
     fn default() -> Self { MessagingLevel::Normal }
 }
+
+// Delegation of messaging level’s parsing to the class itself
 impl FromStr for MessagingLevel {
     type Err = ();
     fn from_str(str: &str) -> Result<Self, Self::Err> {
@@ -103,6 +102,8 @@ impl FromStr for MessagingLevel {
     }
 }
 
+/// Endianess of created output file
+/// TODO: not yet implemented
 pub struct Endianess {
     endianess: reinterpret_bytes::Endianess,
 }
@@ -129,14 +130,10 @@ impl FromStr for Endianess {
         }
     }
 }
-    
 
-// pub struct Flag<T> {
-//     main_str: &'static str,
-//     alias: Option<&'static str>,
-//     argument: T,
-// }
-
+/// Is application allowed to do whatever it takes to create the
+/// output file (even through possible confusion or errors)
+/// TODO: not yet implemented
 #[derive(Default)]
 pub struct Force {
     do_force: bool,
@@ -152,6 +149,7 @@ impl FromStr for Force {
     }
 }
 
+/// Should application display help for it’s usage
 #[derive(Default)]
 pub struct Help {
     need_help: bool,
@@ -194,19 +192,6 @@ impl DataFlag for Key {
         key_parsing::key_from_str(&arg_str).ok()
     }
 }
-// impl<T> Flag<T> where T: std::FromStr {
-//     fn new(main_str: &'static str, alias: Option<&'static str>, argument: T) -> Self {
-//         Self {
-//             main_str,
-//             alias,
-//             argument,
-//         }
-//     }
-
-//     fn parse_argument(&mut self, arg_str: &str) -> Option<T> {
-//         self.argument.from_str(arg_str).ok()
-//     }
-// }
 
 #[derive(Default)]
 pub struct Cli {
@@ -241,9 +226,6 @@ impl Cli {
                     let key_hex_str = &args.next()?;
                     self.key = key_parsing::key_from_str(key_hex_str).ok()?;
                 },
-                // "-o" | "--output" => {
-                    
-                // },
                 "-h" | "--help" => {
                     self.help_requested = true;
                 },
