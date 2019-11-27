@@ -74,6 +74,10 @@ fn main() {
         match cli.action() {
             Action::EncryptFile => des::api::encrypt(read, write, cli.key(), cli.endianess()),
             Action::DecryptFile => des::api::decrypt(read, write, cli.key(), cli.endianess()),
+            Action::TripleEncryptFile => des::api::triple_encrypt(
+                read, write, (cli.key(), cli.key(), cli.key()), cli.endianess()),
+            Action::TripleDecryptFile => des::api::triple_decrypt(
+                read, write, (cli.key(), cli.key(), cli.key()), cli.endianess()),
         }.expect("Internal error (I/O)");
         
         cli.announce_end();    

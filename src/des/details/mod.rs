@@ -1,3 +1,5 @@
+//! DES details module, various bit transformation functions, key
+//! generation for encryption / decryption purposes
 
 pub mod bit_encoding;
 pub use self::bit_encoding::*;

@@ -2,6 +2,10 @@ use crate::math::bit_arithmetics::idx_from_low as low;
 use crate::math::bit_arithmetics::idx_from_high as high;
 
 const MAX_INT_SIZE_BITS: u32 = 64;
+
+/// Encoding table splits the number into pieces of certain size, each
+/// piece will be looked up in the table and associated with a new
+/// value. These values will be grouped into a new number
 pub struct EncodingTable<'a> {
     encoding_rules: Vec<u64>,
     input_size: u32,
@@ -21,7 +25,10 @@ impl<'a> EncodingTable<'a> {
             row_bits,
         }
     }
-
+    /// splits the number into pieces of certain size, each
+    /// piece will be looked up in the table and associated with a new
+    /// value. These values will be grouped into a result number
+    /// @returns result of encoding (with stated rules)
     pub fn apply(&self, number: u64) -> u64 {
         let total_columns = (self.encoding_rules.len() / (1 << self.row_bits.len())) as u64;
         let (col_idx, _) = high::drop_bits(number, self.row_bits.iter().cloned(), self.input_size);
@@ -32,6 +39,7 @@ impl<'a> EncodingTable<'a> {
     }
 }
 
+/// Field access functions
 impl<'e> EncodingTable<'e> {
     pub fn input_size(&'e self) -> u32 { self.input_size }
     pub fn output_size(&'e self) -> u32 { self.output_size }
@@ -52,9 +60,9 @@ mod tests {
                 15, 12, 8, 2, 4, 9, 1, 7, 5, 11, 3, 14, 10, 0, 6, 13,
             ], &[0, 5], 6, 4,
         );
-        assert_eq!(table.apply(0b011000), 0b0101);
-        assert_eq!(table.apply(0b101001), 4);
-        assert_eq!(table.apply(0b001101), 13);
+        assert_eq!(table.apply(0b011000), 0b0101, "Test 1");
+        assert_eq!(table.apply(0b101001), 4, "Test 2");
+        assert_eq!(table.apply(0b001101), 13, "Test 3");
         let table = EncodingTable::new(
             vec![
                 15, 1, 8, 14, 6, 11, 3, 4, 9, 7, 2, 13, 12, 0, 5, 10,
@@ -63,8 +71,8 @@ mod tests {
                 13, 8, 10, 1, 3, 15, 4, 2, 11, 6, 7, 12, 0, 5, 14, 9,
             ], &[0, 5], 6, 4,
         );
-        assert_eq!(table.apply(0b010001), 0b1100);
-        assert_eq!(table.apply(0b100101), 10);
+        assert_eq!(table.apply(0b010001), 0b1100, "Test 4");
+        assert_eq!(table.apply(0b100101), 10, "Test 5");
     }
 
 }

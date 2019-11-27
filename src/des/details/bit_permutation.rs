@@ -1,14 +1,16 @@
 use crate::math::bit_arithmetics::idx_from_high as high;
 use crate::math::bit_arithmetics::idx_from_low as low;
 
+/// Bit permutation table. Allowes to permute bits in a number in any order
 pub struct PermutationTable{
     input_size: u32,
     output_size: u32,
     bit_destinations: Vec<u32>,
 }
 
-// TODO: test
 impl PermutationTable {
+    /// Fills the table with given values, fixes ordering to uniform
+    /// @returns constructed table
     pub fn new(mut bit_destinations: Vec<u32>, numbering_from: u32, input_size_bits: u32) -> Self {
         for idx in bit_destinations.iter_mut(){
             *idx -= numbering_from;
@@ -20,12 +22,15 @@ impl PermutationTable {
         }
     }
 
+    /// Permutes bits in the given number in order, that is specified
+    /// in the table. 0th bit in the number will go in table[0] place
+    /// in the result
+    /// @returns permuted number
     pub fn apply(&self, value: u64) -> u64 {
         let mut result = 0;
         if self.bit_destinations.len() == 0 { return 0; }
         let loop_limit = std::cmp::min(self.bit_destinations.len() - 1, 63);
         for &bit_dest in self.bit_destinations[..loop_limit].iter() {
-            // print!("{} ", bit_dest);
             result += high::get_bit(value, bit_dest, self.input_size);
             result <<= 1;
         }
@@ -34,6 +39,7 @@ impl PermutationTable {
     }
 }
 
+/// Access function to the fields
 impl PermutationTable {
     pub fn input_size(&self) -> u32 { self.input_size }
     pub fn output_size(&self) -> u32 { self.output_size }
@@ -54,7 +60,8 @@ mod tests {
         ], 1, 64);
         assert_eq!(
             pt.apply(0b_00010011_00110100_01010111_01111001_10011011_10111100_11011111_11110001),
-            0b_1111000_0110011_0010101_0101111_0101010_1011001_1001111_0001111
+            0b_1111000_0110011_0010101_0101111_0101010_1011001_1001111_0001111,
+            "Permutation table doesn't work correctly"
         );
 
         let pt = PermutationTable::new(vec![
@@ -67,9 +74,15 @@ mod tests {
             61, 53, 45, 37, 29, 21, 13, 5,
             63, 55, 47, 39, 31, 23, 15, 7,
         ], 1, 64);
-        assert_eq!(pt.apply(std::u64::MAX), std::u64::MAX);
         assert_eq!(
-            pt.apply(0x0123456789ABCDEF),       0b1100_1100_0000_0000_1100_1100_1111_1111_1111_0000_1010_1010_1111_0000_1010_1010);
+            pt.apply(std::u64::MAX),
+            std::u64::MAX,
+            "Permutation of all 1's number doesn't yield all 1's number"
+        );
+        assert_eq!(
+            pt.apply(0x0123456789ABCDEF),
+            0b1100_1100_0000_0000_1100_1100_1111_1111_1111_0000_1010_1010_1111_0000_1010_1010,
+            "Permutation table doesn't work correctly #2");
         
     }
     

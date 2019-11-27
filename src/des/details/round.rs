@@ -9,6 +9,8 @@ const GRANULATION_INPUT_SIZE_BITS: u32 = 6;
 const GRANULATION_OUTPUT_SIZE_BITS: u32 = 4;
 const DATA_INITIAL_SIZE_BITS: u32 = 32;
 
+/// Expansion from 32 bit data piece to 48 bit. After expansion we’ll
+/// be able to apply 48 round key on it 
 lazy_static! {
     static ref EXPANSION: PermutationTable = PermutationTable::new(vec![
         32, 1, 2, 3, 4, 5,
@@ -22,7 +24,7 @@ lazy_static! {
     ], BIT_COUNT_FROM, BITS_IN_LOW_HALF);
 }
 
-
+/// Final permutation of encrypted 48 bit data piece
 lazy_static! {
     static ref FINAL_PERMUTATION: PermutationTable = PermutationTable::new(vec![
         16, 7, 20, 21,
@@ -38,6 +40,7 @@ lazy_static! {
 
 static GRANULATION_ROW_BITS_INDICES: [u32; 2] = [0, 5];
 
+/// 8 tables, each matches 6 bits of data to a 4 bit number
 lazy_static! {
     static ref GRANULATIONS: [EncodingTable<'static>; 8] = [
         EncodingTable::new(
@@ -131,12 +134,8 @@ lazy_static! {
     ];
 }
 
-// const GRANUAL_PERMUTATIONS: [EncodingTable; 8] = [
-//     PermutationTable::new(vec![
-        
-//     ], BIT_COUNT_FROM, SMALL_BLOCK_SIZE_BITS),
-// ];
-
+/// A single DES encryption round
+/// @returns result of the round
 #[inline]
 pub fn encrypt_round(data: u64, key: Key)  -> u64 {
     let split = low::split_by_bit(
@@ -147,6 +146,8 @@ pub fn encrypt_round(data: u64, key: Key)  -> u64 {
     new_high + new_low as u64
 }
 
+/// The last round of DES encryption (which should not be swapped afterwards)
+/// @returns result of the round (i.e. result of block’s encryption)
 #[inline]
 pub fn encrypt_last_round(data: u64, key: Key) -> u64 {
     low::swap_ranges(
@@ -155,24 +156,15 @@ pub fn encrypt_last_round(data: u64, key: Key) -> u64 {
     ).unwrap()
 }
 
-// #[inline]
-// pub fn decrypt_round(data: u64, key: Key) -> u64 {
-//     let swapped_halfs = low::swap_ranges(
-//         data, BITS_IN_LOW_HALF, BITS_IN_INPUT).unwrap();
-//     let decrypted_data = encrypt_round(swapped_halfs, key);
-//     let end = low::swap_ranges(
-//         decrypted_data, BITS_IN_LOW_HALF, BITS_IN_INPUT).unwrap();
-//     end
-// }
-
+/// Obscuring function, operating on 32 bit piece of data with a
+/// certain key (round key)
+/// @returns obscured with the key piece of data 
 // TODO: check key size
 fn feilstel_function(data: u32, key: Key)  -> u32 {
     let data = data as u64;
     
     let expanded_data = EXPANSION.apply(data as u64);    
-    // println!("{:#066b}", expanded_data);
     let encrypted_data = expanded_data ^ key.value;
-    // println!("{:#066b}", encrypted_data);
     let mut data_size = key.size_bits;
     let mut data_to_split = encrypted_data;
     let mut merged_data = 0;
@@ -197,13 +189,12 @@ mod tests {
     use super::*;
     #[test]
     fn test_feilstel_function() {
-        //let val: u32 = 0b1111_0000_1010_1010_1111_0000_1010_1010;
-        // println!("{:#066b}", val);
         assert_eq!(
             feilstel_function(
                 0b1111_0000_1010_1010_1111_0000_1010_1010,
                 Key {value:0b000110_110000_001011_101111_111111_000111_000001_110010, size_bits:48}),
-            0b0010_0011_0100_1010_1010_1001_1011_1011
+            0b0010_0011_0100_1010_1010_1001_1011_1011,
+            "Feilsel function doesn't work properly"
         );
     }
 
@@ -214,21 +205,7 @@ mod tests {
             encrypt_round(
                 0b1100_1100_0000_0000_1100_1100_1111_1111_1111_0000_1010_1010_1111_0000_1010_1010, scheduler.next().unwrap()),
             0b1111_0000_1010_1010_1111_0000_1010_1010__1110_1111_0100_1010_0110_0101_0100_0100,
+            "Encryption round yields wrong result"
         )
     }
-
-    // #[test]
-    // fn test_decrypt_round() {
-    //     let mut scheduler = KeyScheduler::new_decrypting(0x133457799BBCDFF1);
-    //     for _ in 0..15 { scheduler.next(); };
-    //     assert_eq!(
-    //         encrypt_round(
-    //             //675DB281
-
-
-    //             0b1110_1111_0100_1010_0110_0101_0100_0100__1111_0000_1010_1010_1111_0000_1010_1010, scheduler.next().unwrap()),
-    //         0b1100_1100_0000_0000_1100_1100_1111_1111_1111_0000_1010_1010_1111_0000_1010_1010
-    //     )
-    // }
-
 }

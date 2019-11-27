@@ -4,8 +4,6 @@ use std::str::FromStr;
 use crate::reinterpret_bytes;
 
 pub static USAGE_MESSAGE: &str  = 
-    // "USAGE: des {{src_path}} [-k {{key}}] [-o {{dst_path}}] [{-b,
-    // -l}] [{-e, -d}] \n\
     "\nUSAGE: des {{src_file}} {{dst_file}}\n\n\
      * these paths can't be the same, and src_file should exist\n\
      * different flags are allowed between these tokens\n\
@@ -22,6 +20,10 @@ pub static HELP_MESSAGE: &str =
      program will perform encryption of src_file \n\n\
      -d / --decrypt \n\
      program will perform decryption of src_file \n\n\
+     -te / --triple-encrypt \n\
+     program will perform 3DES encryption of src_file \n\n\
+     -td / --triple-decrypt \n\
+     program will perform 3DES decryption of src_file \n\n\
      -k / --key \"KEY-HEX-STRING\" \n\n\
      program will perform using specified key \n\
      (which should contain only \n\
@@ -165,11 +167,8 @@ impl FromStr for Help {
     }
 }
 
-trait DataFlag: FromStr {
-    type DataType;
-    fn parse_data(&self, arg_str: &str) -> Option<Self::DataType>;
-}
-
+/// Key for encrytion / decryption
+/// Fits in 64 bits, but for DES only 56 bits are used
 pub struct Key {
     pub parsed_key: u64,
 }
@@ -186,6 +185,16 @@ impl FromStr for Key {
         }
     }
 }
+
+/// Object with this trait, aswell as can be built from string, but
+/// also can take a string argument (and parse some data from it)
+trait DataFlag: FromStr {
+    type DataType;
+    /// Take string argument and parse valuable data from it in a form
+    /// of some arbitrary type
+    /// @returns Option with parsed data of given type in it
+    fn parse_data(&self, arg_str: &str) -> Option<Self::DataType>;
+}
 impl DataFlag for Key {
     type DataType = u64;
     fn parse_data(&self, arg_str: &str) -> Option<Self::DataType> {
@@ -193,6 +202,8 @@ impl DataFlag for Key {
     }
 }
 
+/// Command line interface for DES application, parses command line
+/// arguments into DES options
 #[derive(Default)]
 pub struct Cli {
     pub key: u64,
@@ -206,14 +217,20 @@ pub struct Cli {
 }
 
 impl Cli {
+    /// Construct with default parameters
+    /// @returns a new instance of Cli type with default settings
     pub fn new() -> Self {
         Default::default()
     }
-    
+
+    /// Take iterator of strings and try parse as many CLI parameters
+    /// as it can
+    /// @returns Option with modified Cli instance in it. None denotes
+    /// failure during parsing of arguments
     pub fn parse_args<'a, T, S>(mut self, mut args: T) -> Option<Self>
     where T : Iterator<Item=S>, S: AsRef<str> {
+        // Skip executable name
         args.next()?;
-
         let mut dest_path_buf;
         let mut is_action_specified = false;
         let mut is_endianess_specified = false;
@@ -221,6 +238,8 @@ impl Cli {
         while let Some(flag) = args.next() {
             let flag = flag.as_ref();
             match flag {
+                // Flags with no arguments, or with arguments
+                // following the flag rigth away
                 "-k" | "--key"=> {
                     // TODO: Cow possibility, inplace replace
                     let key_hex_str = &args.next()?;
@@ -249,23 +268,23 @@ impl Cli {
                 //     is_endianess_specified = true;
                 //     self.endianess = Endianess::Little;
                 // }
+
+                // Parameters, that can be placed anywhere between
+                // flags, but they’re in a strict order among themselves 
                 free_arg => {
                     free_arg_cnt += 1;
                     match free_arg_cnt {
-                        1 => { // input file
+                        // input file parameter
+                        1 => { 
                             self.src_file_path = PathBuf::from(free_arg);
-                            
                             if !self.src_file_path.is_file() {return None;}
-                            // FIXME: if no parent
-                            // self.dst_file_path = match self.src_file_path.parent() {
-                            // Some(parent) => {
-
-                            // Default state (if some of )
+                            // Default state
                             dest_path_buf = PathBuf::from(&self.src_file_path);
                             dest_path_buf.set_extension("des");
                             self.dst_file_path = dest_path_buf;
                         },
-                        2 => { // output file
+                        // output file parameter
+                        2 => { 
                             let mut dst_path = PathBuf::from(free_arg);
                             if dst_path.is_dir() {
                                 dst_path.set_file_name(
@@ -274,7 +293,6 @@ impl Cli {
                             } else if let Some(_) = dst_path.file_name() {
                                 if let None = dst_path.extension() {
                                     dst_path.set_extension("des");
-                                    //println!("{:?}", dst_path);
                                 }
                             }
                             self.dst_file_path = dst_path
@@ -285,59 +303,73 @@ impl Cli {
                 },
             }
         }
+        // Requested help allows misuse in other flags and parameters
         if self.help_requested || free_arg_cnt >= 1 { Some(self) }
         else { None }
     }
-    
-    pub fn default_key<'a, T>(mut self, key: T)
-                              -> Result<Self, key_parsing::ParseKeyError>
+
+    /// Set default key, if no key is given from command line arguments
+    /// @returns Result with modified Cli instance in it (builder pattern)
+    pub fn default_key<'a, T>
+        (mut self, key: T) -> Result<Self, key_parsing::ParseKeyError>
     where T: AsRef<str> {
         // TODO: no details
         self.key = key_parsing::key_from_str(&key)?;
         Ok(self)
     }
 
+    /// Set default action, if none is given from command line arguments
+    /// @returns Result with modified Cli instance in it (builder pattern)
     pub fn default_action(mut self, action: Action) -> Self {
         self.action = action;
         self
     }
 
+    /// Set default endianess, if none is given from command line arguments
+    /// @returns Result with modified Cli instance in it (builder pattern)
     pub fn default_endianess(mut self, endianess: reinterpret_bytes::Endianess) -> Self {
         self.endianess = Endianess::new(endianess);
         self
     }
-
+    /// User output: print help message
     // TODO: accept stream, not just println
     pub fn print_help() {
         println!("{}", HELP_MESSAGE);
     }
-    
+
+    /// User output: print usage message
     pub fn print_usage() {
         println!("{}", USAGE_MESSAGE);
     }
 
+    /// User output: print announcement message, about the start of
+    /// DES encryption / decryption
     pub fn announce_begin(&self) {
         use Action::*;
         let tag = match self.action {
-            EncryptFile => "[ ENCRYPT ]",
-            DecryptFile => "[ DECRYPT ]",
+            EncryptFile | TripleEncryptFile  => "[ ENCRYPT ]",
+            DecryptFile | TripleDecryptFile  => "[ DECRYPT ]",
         };
         println!("{} Input  file: {}", tag, self.src_file_path.display());
         println!("{} Output file: {}", tag, self.dst_file_path.display());
         println!("{} Key = {:#018x}", tag, self.key)
     }
 
+    /// User output: print announcement message, about the end of
+    /// DES encryption / decryption
     pub fn announce_end(&self) {
         use Action::*;
         let tag = match self.action {
-            EncryptFile => "[ ENCRYPT ]",
-            DecryptFile => "[ DECRYPT ]",
+            EncryptFile | TripleEncryptFile => "[ ENCRYPT ]",
+            DecryptFile | TripleDecryptFile => "[ DECRYPT ]",
         };
         println!("{} Done", tag);
     }
 
 }
 
+/// A public interface to DES parameters, moved there just for
+/// convenience in lookup
 impl Cli {
     pub fn key(&self) -> u64 { self.key }
     pub fn src_file_path(&self) -> &PathBuf { &self.src_file_path }

@@ -1,8 +1,9 @@
-use super::{encrypt_round, encrypt_last_round, KeyScheduler, Key, PermutationTable};
+use super::{encrypt_round, encrypt_last_round, KeyScheduler, DecryptingKeyScheduler, EncryptingKeyScheduler, Key, PermutationTable};
 
 const PERMUTATION_INPUT_SIZE: u32 = 64;
 const BIT_COUNT_FROM: u32 = 1;
 
+/// The permutation of data block before any other encrypting / decrypting 
 lazy_static! {
     static ref INITIAL_PERMUTATION: PermutationTable
     = PermutationTable::new(vec![
@@ -17,6 +18,7 @@ lazy_static! {
     ], BIT_COUNT_FROM, PERMUTATION_INPUT_SIZE);
 }
 
+/// The permutation of data block after all encrypting / decrypting 
 lazy_static! {
     static ref REVERSE_PERMUTATION: PermutationTable
     = PermutationTable::new(vec![
@@ -31,37 +33,59 @@ lazy_static! {
     ], BIT_COUNT_FROM, PERMUTATION_INPUT_SIZE);
 }
 
-// TODO: accept arbitrary u8 slice, not strict u64
-pub fn encrypt_block(data: u64, key: u64) -> u64 {
+/// Takes a piece of data of size 64 bit, encrypts it with DES
+/// algorithm using a given key (making whole cycle of scheduling aswell)
+/// @returns encrypted piece of data
+pub fn encrypt_block_separately(data: u64, key: u64) -> u64 {
     act_on_block(
         data,
-        KeyScheduler::new_encrypting(key),
+        &mut KeyScheduler::new_encrypting(key),
     )
 }
 
-pub fn decrypt_block(data: u64, key: u64) -> u64 {
+/// Takes a piece of data of size 64 bit, decrypts it with DES
+/// algorithm, using a given key (making whole cycle of scheduling aswell)
+/// @returns decrypted piece of data
+pub fn decrypt_block_separately(data: u64, key: u64) -> u64 {
     act_on_block(
         data,
-        KeyScheduler::new_decrypting(key),
+        &mut KeyScheduler::new_decrypting(key),
     )
 }
 
+/// Takes a piece of data of size 64 bit, decrypts it with DES
+/// algorithm, using a given key scheduler (which caches all keys, so
+/// there is a low overhead on encrypting)
+/// @returns encrypted piece of data
+pub fn encrypt_block(data: u64, scheduler: &mut impl Iterator<Item=Key>) -> u64 {
+    act_on_block(
+        data,
+        scheduler,
+    )
+}
+/// Takes a piece of data of size 64 bit, decrypts it with DES
+/// algorithm, using a given key scheduler (which caches all keys, so
+/// there is a low overhead on decrypting)
+/// @returns decrypted piece of data
+pub fn decrypt_block(data: u64, scheduler: &mut impl Iterator<Item=Key>) -> u64 {
+    act_on_block(
+        data,
+        scheduler,
+    )
+}
+
+/// Since DES encryption and decrytion algorithms differ only in key
+/// scheduling, they both can be implemented with this function
+/// @returns encrypted / decrypted piece of data, depending on keys given
 #[inline]
-fn act_on_block<I>(mut data: u64, mut key_iterator: I) -> u64
+fn act_on_block<I>(mut data: u64, key_iterator: &mut I) -> u64
 where I: Iterator<Item=Key>{
     const ROUNDS_NUMBER: usize = 16;
-    // let action = match do_encrypt {
-    //     true => encrypt_round,
-    //     false => decrypt_round,
-    // };
-        // println!("{:#018x}", data);
     data = INITIAL_PERMUTATION.apply(data);
-    for (_, round_key) in (0..ROUNDS_NUMBER-1).zip(&mut key_iterator) {
+    for (_, round_key) in (0..ROUNDS_NUMBER-1).zip(key_iterator.by_ref()) {
         data = encrypt_round(data, round_key);
-        // println!("{:#018x}", data);
     }
     data = encrypt_last_round(data, key_iterator.next().unwrap());
-    // println!("{:#018x} done", data);
     REVERSE_PERMUTATION.apply(data)
 }
 
@@ -72,40 +96,48 @@ mod tests {
     #[test]
     fn test_encryption_of_block() {
         assert_eq!(
-            encrypt_block(0x0123456789ABCDEF, 0x133457799BBCDFF1),
-            0x85E813540F0AB405
+            encrypt_block_separately(0x0123456789ABCDEF, 0x133457799BBCDFF1),
+            0x85E813540F0AB405,
+            "Encryption test 1"
         );
         assert_eq!(
-            encrypt_block(0x8787878787878787, 0x0e329232ea6d0d73),
-            0x0000000000000000
+            encrypt_block_separately(0x8787878787878787, 0x0e329232ea6d0d73),
+            0x0000000000000000,
+            "Encryption test 2"
         );
 
         assert_eq!(
-            encrypt_block(0x596f7572206c6970, 0x0e329232ea6d0d73),
-            0xc0999fdde378d7ed
+            encrypt_block_separately(0x596f7572206c6970, 0x0e329232ea6d0d73),
+            0xc0999fdde378d7ed,
+            "Encryption test 3"
         );
         assert_eq!(
-            encrypt_block(0x123456ABCD132536, 0xAABB09182736CCDD),
-            0xC0B7A8D05F3A829C
+            encrypt_block_separately(0x123456ABCD132536, 0xAABB09182736CCDD),
+            0xC0B7A8D05F3A829C,
+            "Encryption test 4"
         );
     }
     #[test]
     fn test_decryption_of_block() {
         assert_eq!(
-            decrypt_block(0x85E813540F0AB405, 0x133457799BBCDFF1),
-            0x0123456789ABCDEF
+            decrypt_block_separately(0x85E813540F0AB405, 0x133457799BBCDFF1),
+            0x0123456789ABCDEF,
+            "Decryption test 1"
         );
         assert_eq!(
-            decrypt_block(0x0000000000000000, 0x0e329232ea6d0d73),
-            0x8787878787878787
+            decrypt_block_separately(0x0000000000000000, 0x0e329232ea6d0d73),
+            0x8787878787878787,
+            "Decryption test 2"
         );
         assert_eq!(
-            decrypt_block(0xc0999fdde378d7ed, 0x0e329232ea6d0d73),
-            0x596f7572206c6970
+            decrypt_block_separately(0xc0999fdde378d7ed, 0x0e329232ea6d0d73),
+            0x596f7572206c6970,
+            "Decryption test 3"
         );
         assert_eq!(
-            decrypt_block(0xC0B7A8D05F3A829C, 0xAABB09182736CCDD),
-            0x123456ABCD132536
+            decrypt_block_separately(0xC0B7A8D05F3A829C, 0xAABB09182736CCDD),
+            0x123456ABCD132536,
+            "Decryption test 4"
         );
     }
 
